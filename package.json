@@ -19,5 +19,10 @@
   },
   "workspaces": [
     "src/web"
-  ]
+  ],
+  "koishi": {
+    "services": {
+      "required": [ "puppeteer" ]
+    }
+  }
 }
