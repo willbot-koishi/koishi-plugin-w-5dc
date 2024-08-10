@@ -9,14 +9,15 @@
     "dist"
   ],
   "license": "MIT",
-  "scripts": {},
   "keywords": [
     "chatbot",
     "koishi",
     "plugin"
   ],
-  "devDependencies": {},
   "peerDependencies": {
     "koishi": "4.17.11"
-  }
+  },
+  "workspaces": [
+    "src/web"
+  ]
 }
