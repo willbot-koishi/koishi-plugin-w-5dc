@@ -30,6 +30,13 @@ export function apply(ctx: Context) {
         ]))[0]
     )
 
+    const createPage = async (pageId: string) => {
+        const newPage = pages[pageId] = await ctx.puppeteer.browser.newPage()
+        await newPage.goto(`file://${path.join(__dirname, 'web/dist/index.html')}`)
+        await newPage.evaluate(() => window.doStart())
+        return newPage
+    }
+
     const getPageOrCreate = async (session: Session, forceCreate = false): Promise<Page> => {
         const pageId = getPageId(session)
         const page = pages[pageId]
@@ -37,10 +44,7 @@ export function apply(ctx: Context) {
         if (page) page.close()
         
         session.send('正在创建对局……')
-        const newPage = pages[pageId] = await ctx.puppeteer.browser.newPage()
-        await newPage.goto(`file://${path.join(__dirname, 'web/dist/index.html')}`)
-        await newPage.evaluate(() => window.doStart())
-        return newPage
+        return await createPage(pageId)
     }
 
     let lastScreen: Buffer | null = null
@@ -81,6 +85,32 @@ export function apply(ctx: Context) {
             return shot(page)
         })
 
+
+    ctx.command('5dc.export', '导出当前 5dc 对局')
+        .option('format', '-F <format: string>', { fallback: '5dpgn' })
+        .action(async ({ session, options }) => {
+            const page = getPage(session)
+            if (! page) return '当前没有对局，请先调用 5dc.start 创建对局'
+
+            return await page.evaluate(format => window.chess.export(format), options.format)
+        })
+
+    ctx.command('5dc.import <input: text>', '导入 5dc 棋局')
+        .option('new', '-n')
+        .action(async ({ session, options }, input) => {
+            const pageId = getPageId(session)
+            if (pages[pageId] && ! options.new) return '有对局正在进行，如需覆盖导入请先调用 5dc.end 结束当前对局'
+
+            const page = await createPage(pageId)
+            session.send('正在导入对局……')
+            await page.evaluate(input => {
+                window.chess.import(input)
+                window.cr.global.sync(window.chess)
+            }, input)
+            await page.evaluate(() => window.doZoomPresent())
+            return shot(page)
+        })
+
     ctx.command('5dc.list', '显示当前所有 5dc 对局')
         .action(() => {
             const pageIds = Object.keys(pages)
@@ -112,7 +142,7 @@ export function apply(ctx: Context) {
                     delete pages[pageId]
                     return `已结束对局 '${pageId}'`
                 }
-                return '当期没有对局'
+                return '当前没有对局'
             }
 
             const endedNum = endAll()

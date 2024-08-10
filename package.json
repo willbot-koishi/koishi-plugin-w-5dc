@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-w-5dc",
-  "description": "5DC render",
-  "version": "0.0.1",
+  "description": "WillBot: play 5D Chess on Koishi",
+  "version": "0.0.2",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -22,7 +22,9 @@
   ],
   "koishi": {
     "services": {
-      "required": [ "puppeteer" ]
+      "required": [
+        "puppeteer"
+      ]
     }
   }
 }
