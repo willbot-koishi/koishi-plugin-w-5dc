@@ -1,5 +1,5 @@
 import ChessRenderer from '5d-chess-renderer'
-import Chess from '5d-chess-js'
+import Chess, { Variant } from '5d-chess-js'
 import type { ISnapZoomOptions } from 'pixi-viewport'
 
 declare global {
@@ -12,15 +12,14 @@ declare global {
         doZoomPresent: typeof doZoomPresent
         doZoomFullBoard: typeof doZoomFullBoard
     }
+
+    var cr: ChessRenderer
+    var chess: Chess
 }
 
 const rootEl = document.getElementById('root')!
-const cr = new ChessRenderer(rootEl)
+window.cr = new ChessRenderer()
 cr.global.attach(rootEl)
-
-const chess = new Chess()
-chess.skipDetection = true
-cr.global.sync(chess)
 
 void function hookSnapZoom() {
     const { viewport } = cr.zoom
@@ -44,7 +43,12 @@ async function doZoomFullBoard() {
     })
 }
 
-async function doStart() {
+async function doStart(input: string, variant: Variant) {
+    window.chess = new Chess(input)
+    chess.reset(variant)
+    chess.skipDetection = true
+    cr.global.sync(chess)
+
     await doZoomPresent()
 }
 
@@ -63,6 +67,5 @@ async function doMove(input: string): Promise<string | null> {
 }
 
 Object.assign(window, {
-    cr, chess,
     doStart, doMove, doZoomPresent, doZoomFullBoard
 })

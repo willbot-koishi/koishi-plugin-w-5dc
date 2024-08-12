@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-w-5dc",
   "description": "WillBot: play 5D Chess on Koishi",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -29,7 +29,7 @@
   },
   "scripts": {
     "web.dev": "vite src/web",
-    "web.build": "tsc -p src/web/tsconfig.json && mkdir -p lib/web vite build src/web && cp -r src/web/dist lib/web"
+    "web.build": "tsc -p src/web/tsconfig.json && mkdir -p lib/web && vite build src/web && cp -r src/web/dist lib/web"
   },
   "koishi": {
     "services": {

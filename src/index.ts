@@ -1,8 +1,9 @@
 import path from 'path'
-import { h, Context, Schema, Session } from 'koishi'
+import { h, Context, Schema, Session, SessionError } from 'koishi'
 import {} from 'koishi-plugin-puppeteer'
 import type { Page } from 'puppeteer-core'
 import {} from './web/src/main'
+import { Variant, default as Chess } from '5d-chess-js'
 
 export const name = 'w-5dc'
 
@@ -15,6 +16,8 @@ export const Config: Schema<Config> = Schema.object({})
 export function apply(ctx: Context) {
     const pages: Record<string, Page> = {}
 
+    const chess = new Chess
+
     const getPageId = (session: Session): string => {
         return session.guildId ?? ('#' + session.userId)
     }
@@ -23,38 +26,24 @@ export function apply(ctx: Context) {
         return pages[getPageId(session)]
     }
 
-    const _withMinTime = async <T>(promise: Promise<T>, minTime: number) => (
-        (await Promise.all([
-            promise,
-            sleep(minTime)
-        ]))[0]
-    )
-
-    const createPage = async (pageId: string) => {
+    const createPage = async (pageId: string, input: string, variant: string) => {
         const newPage = pages[pageId] = await ctx.puppeteer.browser.newPage()
         await newPage.goto(`file://${path.join(__dirname, 'web/dist/index.html')}`)
-        await newPage.evaluate(() => window.doStart())
+        await newPage.evaluate(
+            (input, variant) => window.doStart(input, variant),
+            input, variant as Variant
+        )
         return newPage
     }
 
-    const getPageOrCreate = async (session: Session, forceCreate = false): Promise<Page> => {
-        const pageId = getPageId(session)
-        const page = pages[pageId]
-        if (! forceCreate && page) return page
-        if (page) page.close()
-        
-        session.send('正在创建对局……')
-        return await createPage(pageId)
-    }
+    const sleep = async (t: number) => new Promise(res => setTimeout(res, t))
 
-    let lastScreen: Buffer | null = null
-
-    const MIN_SCREEN_BYTELENGTH = 10000
-
+    let screen: Buffer | null = null
+    const MIN_SCREEN_BYTELENGTH = 40000
     const shot = async (page: Page) => {
         const body = await page.$('body')
         while (true) {
-            const screen = await body.screenshot()
+            screen = await body.screenshot()
             if (screen.byteLength < MIN_SCREEN_BYTELENGTH) {
                 await sleep(500)
                 continue
@@ -63,24 +52,60 @@ export function apply(ctx: Context) {
         }
     }
 
-    const sleep = async (t: number) => new Promise(res => setTimeout(res, t))
+    const tryGetVariantName = (variant: string): string => {
+        const fullName = chess.raw.metadataFuncs.lookupVariantFull(variant)
+        if (! fullName) throw new SessionError(`未知的变体 ${variant}`)
+        return fullName
+    }
 
-    ctx.command('5dc.show', '显示/创建 5dc 对局')
-        .option('new', '-n')
+    const start = async (
+        { session, options: { override, full, variant } }: {
+            session: Session,
+            options: { override: boolean, full: boolean, variant: string }
+        },
+        input?: string
+    ) => {
+        const pageId = getPageId(session)
+        if (pages[pageId] && ! override) return '有对局正在进行，如需覆盖导入请使用 --override 选项'
+        
+        const variantName = tryGetVariantName(variant)
+        session.send(`正在创建变体为 ${variant} (${variantName}) 的对局……`)
+        const page = await createPage(pageId, input ?? '', variant)
+
+        if (full) await page.evaluate(() => window.doZoomFullBoard())
+
+        return shot(page)
+    }
+        
+
+    ctx.command('5dc.start', '创建 5dc 对局')
+        .option('override', '-o')
+        .option('full', '-f')
+        .option('variant', '-v <variant: string>', { fallback: 'turn_zero' })
+        .action(start)
+
+
+    ctx.command('5dc.show', '查看当前 5dc 对局')
         .option('full', '-f')
         .action(async ({ session, options }) => {
-            const page = await getPageOrCreate(session, options.new)
+            const page = getPage(session)
+            if (! page) return '当前没有对局，请先调用 5dc.start 创建对局'
+
             if (options.full) await page.evaluate(() => window.doZoomFullBoard())
+
             return shot(page)
         })
 
     ctx.command('5dc.move', '在当前 5dc 对局中落子')
-        .action(async ({ session }, input) => {
+        .option('full', '-f')
+        .action(async ({ session, options }, input) => {
             const page = getPage(session)
             if (! page) return '当前没有对局，请先调用 5dc.start 创建对局'
 
             const error = await page.evaluate(input => window.doMove(input), input)
             if (error) return error
+
+            if (options.full) await page.evaluate(() => window.doZoomFullBoard())
 
             return shot(page)
         })
@@ -96,20 +121,10 @@ export function apply(ctx: Context) {
         })
 
     ctx.command('5dc.import <input: text>', '导入 5dc 棋局')
-        .option('new', '-n')
-        .action(async ({ session, options }, input) => {
-            const pageId = getPageId(session)
-            if (pages[pageId] && ! options.new) return '有对局正在进行，如需覆盖导入请先调用 5dc.end 结束当前对局'
-
-            const page = await createPage(pageId)
-            session.send('正在导入对局……')
-            await page.evaluate(input => {
-                window.chess.import(input)
-                window.cr.global.sync(window.chess)
-            }, input)
-            await page.evaluate(() => window.doZoomPresent())
-            return shot(page)
-        })
+        .option('override', '-o')
+        .option('full', '-f')
+        .option('variant', '-v <variant: string>')
+        .action(start)
 
     ctx.command('5dc.list', '显示当前所有 5dc 对局')
         .action(() => {
@@ -151,7 +166,7 @@ export function apply(ctx: Context) {
 
     ctx.command('5dc.debug.lastscreen')
         .action(() => {
-            console.log(lastScreen.toString())
+            console.log(screen)
         })
 
     ctx.on('dispose', () => {
