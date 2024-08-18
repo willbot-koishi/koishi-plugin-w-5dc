@@ -11,36 +11,44 @@ declare global {
         doMove: typeof doMove
         doZoomPresent: typeof doZoomPresent
         doZoomFullBoard: typeof doZoomFullBoard
+        doResizeCanvas: typeof doResizeCanvas
+        doResizeCanvasToFullBoard: typeof doResizeCanvasToFullBoard
     }
 
     var cr: ChessRenderer
     var chess: Chess
 }
 
+const body = document.body
 const rootEl = document.getElementById('root')!
-window.cr = new ChessRenderer()
-cr.global.attach(rootEl)
 
-void function hookSnapZoom() {
+doCreateRenderer()
+
+function doCreateRenderer() {
+    window.cr = new ChessRenderer()
+    cr.global.attach(rootEl)
+
     const { viewport } = cr.zoom
     const snapZoom = viewport.snapZoom.bind(viewport)
     viewport.snapZoom = (option: ISnapZoomOptions) => snapZoom({ ...option, forceStart: true })
-} ()
+}
+
+function waitSnapZoomEnd() {
+    return new Promise(res => cr.zoom.viewport.once('snap-zoom-end', res))
+}
+
+function sleep(t: number) {
+    return new Promise(res => setTimeout(res, t))
+}
 
 async function doZoomPresent() {
     cr.zoom.present(true, 1.5)
-
-    await new Promise(res => {
-        cr.zoom.viewport.once('snap-zoom-end', res)
-    })
+    await waitSnapZoomEnd()    
 }
 
 async function doZoomFullBoard() {
     cr.zoom.fullBoard()
-
-    await new Promise(res => {
-        cr.zoom.viewport.once('snap-zoom-end', res)
-    })
+    await waitSnapZoomEnd()    
 }
 
 async function doStart(input: string, variant: Variant) {
@@ -66,6 +74,26 @@ async function doMove(input: string): Promise<string | null> {
     }
 }
 
+async function doResizeCanvas(width: number, height: number) {
+    body.style.width = `${width}px`
+    body.style.height = `${height}px`
+
+    cr.destroy()
+
+    doCreateRenderer()
+    cr.global.sync(chess)
+
+    await doZoomFullBoard()
+}
+
+function doResizeCanvasToFullBoard() {
+    const { width, height } = cr.raw.positionFuncs.toWorldBorders(cr.global)
+    return doResizeCanvas(width, height)
+}
+
 Object.assign(window, {
-    doStart, doMove, doZoomPresent, doZoomFullBoard
+    sleep,
+    doStart, doMove,
+    doZoomPresent, doZoomFullBoard,
+    doResizeCanvas, doResizeCanvasToFullBoard
 })

@@ -1,0 +1,6 @@
+[submodule "src/web/externals/5d-chess-js"]
+	path = src/web/externals/5d-chess-js
+	url = git@github.com:ForkKILLET/5d-chess-js
+[submodule "src/web/externals/5d-chess-renderer"]
+	path = src/web/externals/5d-chess-renderer
+	url = git@github.com:ForkKILLET/5d-chess-renderer
