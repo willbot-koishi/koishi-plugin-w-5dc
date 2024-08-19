@@ -1,9 +1,12 @@
-import path from 'path'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+
 import { h, Context, Schema, Session, SessionError } from 'koishi'
+import { type Page } from 'puppeteer-core'
+import Chess, { type Variant } from '5d-chess-js'
+
 import {} from 'koishi-plugin-puppeteer'
-import type { Page } from 'puppeteer-core'
-import {} from './web/src/main'
-import Chess, { Variant } from '5d-chess-js'
+import {} from 'koishi-plugin-w-5dc-web'
 
 export const name = 'w-5dc'
 
@@ -21,11 +24,42 @@ export type Game = {
     }
 }
 
-export function apply(ctx: Context) {
+const sleep = async (t: number) => new Promise(res => setTimeout(res, t))
+
+const isOk = (promise: Promise<any>): Promise<boolean> => promise
+    .then(() => true).catch(() => false)
+
+const fileExists = (path: string) => isOk(fs.access(path))
+
+Array.prototype.mapAsync = function mapAsync<T, U>(this: T[], fn: (item: T) => Promise<U>): Promise<U[]> {
+    return Promise.all(this.map(fn))
+}
+
+Array.prototype.findAsync = async function findAsync<T>(this: T[], pred: (item: T) => Promise<boolean>): Promise<T | undefined> {
+    return (await this.mapAsync(async (item: T): Promise<[ T, boolean ]> => [ item, await pred(item) ])).find(([, state ]) => state)?.[0]
+}
+
+declare global {
+    interface Array<T> {
+        mapAsync<T, U>(fn: (item: T) => Promise<U>): Promise<U[]>
+        findAsync<T>(this: T[], pred: (item: T) => Promise<boolean>): Promise<T | undefined>
+    }
+}
+
+export async function apply(ctx: Context) {
     const games: Record<string, Game> = {}
 
     const chess = new Chess
 
+    const webUrl = 'file://' + await [
+        './web.html',
+        '../packages/web/dist/index.html',
+    ]
+        .map(p => path.join(__dirname, p))
+        .findAsync(p => fileExists(p))
+
+    ctx.logger.info(`Web URL: '${webUrl}'`)
+    
     const getGameId = (session: Session): string => {
         return session.guildId ?? ('#' + session.userId)
     }
@@ -42,7 +76,7 @@ export function apply(ctx: Context) {
 
     const createGame = async (pageId: string, input: string, variant: string): Promise<Game> => {
         const page = await ctx.puppeteer.browser.newPage()
-        await page.goto(`file://${path.join(__dirname, 'web/dist/index.html')}`)
+        await page.goto(webUrl)
         await page.evaluate(
             (input, variant) => window.doStart(input, variant),
             input, variant as Variant
@@ -57,12 +91,10 @@ export function apply(ctx: Context) {
         return game
     }
 
-    const sleep = async (t: number) => new Promise(res => setTimeout(res, t))
-
     const MIN_BYTELENGTH_PER_PIXEL = 1 / 48 // Todo: make this more reasonable
     let lastScreen: Buffer | null = null
     const shot = async ({ page, size }: Game) => {
-        const body = await page.$('body')
+        const body = (await page.$('body'))!
         const minByteLength = size.height * size.width * MIN_BYTELENGTH_PER_PIXEL
 
         while (true) {

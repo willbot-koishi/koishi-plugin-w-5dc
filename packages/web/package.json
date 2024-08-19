@@ -2,18 +2,19 @@
   "name": "koishi-plugin-w-5dc-web",
   "type": "module",
   "private": true,
+  "typings": "lib/main.d.ts",
   "packageManager": "yarn@4.4.0",
   "dependencies": {
     "5d-chess-js": "workspace:*",
     "5d-chess-renderer": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.5.3",
-    "vite": "^5.4.0",
+    "typescript": "^5.6.0-dev.20240819",
+    "vite": "^5.4.1",
     "vite-plugin-singlefile": "^2.0.2"
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && mkdir -p ../lib/web && vite build && cp -r dist ../lib/web"
+    "build": "tsc && vite build"
   }
 }
