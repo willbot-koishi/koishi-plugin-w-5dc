@@ -6,7 +6,7 @@ import { type Page } from 'puppeteer-core'
 import Chess, { type Variant } from '5d-chess-js'
 
 import {} from 'koishi-plugin-puppeteer'
-import {} from 'koishi-plugin-w-5dc-web'
+import {} from '5d-chess-web'
 
 export const name = 'w-5dc'
 
@@ -127,7 +127,6 @@ export async function apply(ctx: Context) {
         session.send(`正在创建变体为 ${variant} (${variantName}) 的对局……`)
 
         const game = await createGame(id, input ?? '', variant)
-        const { page } = game
 
         if (full) await fullScreen(game)
 
@@ -149,7 +148,7 @@ export async function apply(ctx: Context) {
     ctx.command('5dc.start', '创建 5dc 对局')
         .option('override', '-o')
         .option('full', '-f')
-        .option('variant', '-v <variant: string>', { fallback: 'turn_zero' })
+        .option('variant', '-v <variant:string>', { fallback: 'turn_zero' })
         .action(start)
 
 
@@ -179,18 +178,21 @@ export async function apply(ctx: Context) {
 
 
     ctx.command('5dc.export', '导出当前 5dc 对局')
-        .option('format', '-F <format: string>', { fallback: '5dpgn' })
+        .option('format', '-F <format>', { type: /^5dpgn|json$/, fallback: '5dpgn' })
         .action(async ({ session, options }) => {
             const game = tryGetGame(session)
             const { page } = game
 
-            return await page.evaluate(format => window.chess.export(format), options.format)
+            return await page.evaluate(
+                format => window.chess.export(format as any),
+                options.format
+            )
         })
 
-    ctx.command('5dc.import <input: text>', '导入 5dc 棋局')
+    ctx.command('5dc.import <input:text>', '导入 5dc 棋局')
         .option('override', '-o')
         .option('full', '-f')
-        .option('variant', '-v <variant: string>', { fallback: 'turn_zero' })
+        .option('variant', '-v <variant:string>', { fallback: 'turn_zero' })
         .action(start)
 
     ctx.command('5dc.list', '显示当前所有 5dc 对局')

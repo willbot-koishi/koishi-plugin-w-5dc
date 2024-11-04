@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-w-5dc",
   "description": "WillBot: play 5D Chess on Koishi",
-  "version": "0.0.6",
+  "version": "0.0.8",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -15,14 +15,14 @@
     "plugin"
   ],
   "peerDependencies": {
-    "koishi": "4.17.11"
+    "koishi": "^4.18.0"
   },
   "devDependencies": {
     "5d-chess-js": "workspace:*",
-    "koishi-plugin-w-5dc-web": "workspace:*"
+    "5d-chess-web": "workspace:*"
   },
   "koishi": {
-    "services": {
+    "service": {
       "required": [
         "puppeteer"
       ]
